@@ -1,0 +1,74 @@
+{
+  "name": "Online retail",
+  "csv": "online_retail_clean.csv",
+  "description": "The development dataset. The file is large and is not committed, so this suite is skipped unless the CSV is present at the repository root. It covers the five question types named in the brief.",
+  "cases": [
+    {
+      "id": "top-10-products-by-revenue",
+      "question": "What are the top 10 products by revenue?",
+      "expect": "ranking",
+      "truth_sql": "SELECT \"description\" FROM {table} GROUP BY 1 ORDER BY sum(\"line_revenue\") DESC LIMIT 10",
+      "why": "Brief question 1. Revenue is defined here as the sum of the line revenue column, with returns left in, because a return is a real reduction in revenue."
+    },
+    {
+      "id": "net-revenue-in-a-month",
+      "question": "What was the net revenue in March 2011?",
+      "expect": "scalar",
+      "truth_sql": "SELECT sum(\"line_revenue\") FROM {table} WHERE \"invoice_date\" >= DATE '2011-03-01' AND \"invoice_date\" < DATE '2011-04-01'",
+      "why": "Brief question 3. Net means returns are included, so no filter on the return flag. The truth query derives the month from the timestamp rather than using the month column, so it stays correct on a file that has no month column."
+    },
+    {
+      "id": "country-growth-between-quarters",
+      "question": "Which countries grew the most in revenue between the second and third quarter of 2011?",
+      "expect": "ranking",
+      "truth_sql": "WITH by_country AS (SELECT \"country\" AS name, sum(CASE WHEN \"invoice_quarter\" = '2011-Q2' THEN \"line_revenue\" ELSE 0 END) AS earlier, sum(CASE WHEN \"invoice_quarter\" = '2011-Q3' THEN \"line_revenue\" ELSE 0 END) AS later FROM {table} GROUP BY 1) SELECT name FROM by_country ORDER BY (later - earlier) DESC LIMIT 3",
+      "why": "Brief question 2, and the hardest of them. It needs two filtered aggregates over the same column and a comparison between them. Growth is defined as the absolute change in revenue, not the percentage, because a percentage rewards countries that started near zero."
+    },
+    {
+      "id": "one-time-customers",
+      "question": "How many customers placed only one order?",
+      "expect": "scalar",
+      "truth_sql": "WITH per_customer AS (SELECT \"customer_id\", count(DISTINCT \"invoice_no\") AS orders FROM {table} WHERE \"customer_id\" IS NOT NULL GROUP BY 1) SELECT count(*) FROM per_customer WHERE orders = 1",
+      "why": "Brief question 4, first half. Rows with no customer id are excluded, since an unidentified sale cannot be attributed to a customer who bought once."
+    },
+    {
+      "id": "one-time-customer-revenue-share",
+      "question": "What share of total revenue comes from customers who placed only one order?",
+      "expect": "scalar",
+      "tolerance": 0.02,
+      "truth_sql": "WITH per_customer AS (SELECT \"customer_id\", count(DISTINCT \"invoice_no\") AS orders, sum(\"line_revenue\") AS revenue FROM {table} WHERE \"customer_id\" IS NOT NULL GROUP BY 1) SELECT sum(CASE WHEN orders = 1 THEN revenue ELSE 0 END) / sum(revenue) FROM per_customer",
+      "why": "Brief question 4, second half. The share is of identified customer revenue, so the numerator and the denominator cover the same population."
+    },
+    {
+      "id": "bought-together",
+      "question": "Which two products are most often bought together in the same invoice?",
+      "expect": "ranking",
+      "truth_sql": "SELECT a.\"description\" FROM {table} a JOIN {table} b ON a.\"invoice_no\" = b.\"invoice_no\" AND a.\"description\" < b.\"description\" GROUP BY a.\"description\", b.\"description\" ORDER BY count(*) DESC, a.\"description\" ASC LIMIT 1",
+      "why": "Brief question 5. Graded on the first product of the top pair only. Grading the pair itself would mean insisting on a column order and a naming convention the model has no way to guess, which would fail for reasons that are not about correctness."
+    },
+    {
+      "id": "unanswerable-supplier",
+      "question": "Which supplier delivered the most late shipments?",
+      "expect": "refusal",
+      "why": "There is no supplier and no delivery date. The question sounds like retail, which is exactly why it is a good test."
+    },
+    {
+      "id": "unanswerable-margin",
+      "question": "What is our gross margin by product category?",
+      "expect": "refusal",
+      "why": "Price is present, cost is not, and there is no category column. Two separate reasons to refuse."
+    },
+    {
+      "id": "unanswerable-marketing",
+      "question": "Which marketing channel brought in the most new customers?",
+      "expect": "refusal",
+      "why": "Nothing in the file records how a customer arrived."
+    },
+    {
+      "id": "unanswerable-stock",
+      "question": "How many units of each product do we currently have in stock?",
+      "expect": "refusal",
+      "why": "A quantity column exists and it is about quantities sold, not quantities held. Substituting one for the other would be inventing a number."
+    }
+  ]
+}

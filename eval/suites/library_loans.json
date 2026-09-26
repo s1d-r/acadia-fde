@@ -1,0 +1,66 @@
+{
+  "name": "Library loans",
+  "csv": "tests/fixtures/library_loans.csv",
+  "description": "A small file with nothing in common with the development dataset. It is checked in, so this suite runs from a clean clone with no extra downloads. It has no ranking cases on purpose: the fixture was built for unit tests and its categories are perfectly uniform, so every ranking over them is a tie with no single right order. Ranking is covered by the bike hire suite, whose data is deliberately skewed.",
+  "cases": [
+    {
+      "id": "count-all-loans",
+      "question": "How many loans are in this data?",
+      "expect": "scalar",
+      "truth_sql": "SELECT count(*) FROM {table}",
+      "why": "The simplest possible question. If this fails, nothing else is worth reading."
+    },
+    {
+      "id": "total-late-fees",
+      "question": "What is the total of all late fees?",
+      "expect": "scalar",
+      "truth_sql": "SELECT sum(\"Late Fee\") FROM {table}",
+      "why": "Sum one measure over the whole file."
+    },
+    {
+      "id": "late-fees-in-a-month",
+      "question": "What was the total late fee charged in March 2022?",
+      "expect": "scalar",
+      "truth_sql": "SELECT sum(\"Late Fee\") FROM {table} WHERE \"Borrowed On\" >= DATE '2022-03-01' AND \"Borrowed On\" < DATE '2022-04-01'",
+      "why": "A period question with no column named after a month. The model has to derive the month from the date column. This is the case that failed before the temporal affordance was moved into the schema context."
+    },
+    {
+      "id": "renewed-share",
+      "question": "How many loans were renewed?",
+      "expect": "scalar",
+      "truth_sql": "SELECT count(*) FROM {table} WHERE \"Renewed\" = 1",
+      "why": "A flag column must be filtered or counted, never summed as if it were a quantity."
+    },
+    {
+      "id": "average-days-kept",
+      "question": "On average, how many days is an item kept?",
+      "expect": "scalar",
+      "truth_sql": "SELECT avg(\"Days Kept\") FROM {table}",
+      "why": "An average rather than a sum."
+    },
+    {
+      "id": "unanswerable-publisher",
+      "question": "Which publisher charged us the most for these books?",
+      "expect": "refusal",
+      "why": "There is no publisher and no purchase price anywhere in this file. Refusing is the only correct answer."
+    },
+    {
+      "id": "unanswerable-borrower-age",
+      "question": "What is the average age of the borrowers?",
+      "expect": "refusal",
+      "why": "No borrower column at all, let alone an age. A system that answers this is inventing people."
+    },
+    {
+      "id": "unanswerable-staff",
+      "question": "How many staff work at each branch?",
+      "expect": "refusal",
+      "why": "The branch column exists, which is the trap. It names where a loan happened, not who works there."
+    },
+    {
+      "id": "unanswerable-profit",
+      "question": "What was our profit margin on these loans?",
+      "expect": "refusal",
+      "why": "There is a money column, so the shape of the question looks answerable. Cost is not in the file, so margin cannot be computed."
+    }
+  ]
+}

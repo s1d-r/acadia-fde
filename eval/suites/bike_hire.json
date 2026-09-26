@@ -1,0 +1,101 @@
+{
+  "name": "Bike hire",
+  "csv": "eval/data/bike_hire.csv",
+  "description": "900 hires from a bike scheme. Built for evaluation, with deliberately skewed station and bike type distributions so that every ranking has one unambiguous right answer. It covers the five question shapes in the brief on a file that shares nothing with the development dataset, and it is committed, so this suite runs from a clean clone.",
+  "cases": [
+    {
+      "id": "count-all-hires",
+      "question": "How many hires are in this data?",
+      "expect": "scalar",
+      "truth_sql": "SELECT count(*) FROM {table}",
+      "why": "The simplest question there is. If this fails, nothing below it is worth reading."
+    },
+    {
+      "id": "busiest-station",
+      "question": "Which station had the most hires?",
+      "expect": "ranking",
+      "truth_sql": "SELECT \"Station\" FROM {table} GROUP BY 1 ORDER BY count(*) DESC LIMIT 1",
+      "why": "Group and rank by a category column. The distribution is skewed, so there is one right answer and no tie to break."
+    },
+    {
+      "id": "top-three-stations",
+      "question": "List the top 3 stations by number of hires, busiest first.",
+      "expect": "ranking",
+      "truth_sql": "SELECT \"Station\" FROM {table} GROUP BY 1 ORDER BY count(*) DESC LIMIT 3",
+      "why": "Brief question 1 in shape: a top N where the order is the answer."
+    },
+    {
+      "id": "top-stations-by-revenue",
+      "question": "Which 3 stations brought in the most in fees?",
+      "expect": "ranking",
+      "truth_sql": "SELECT \"Station\" FROM {table} GROUP BY 1 ORDER BY sum(\"Fee Charged\") DESC LIMIT 3",
+      "why": "Ranking by a summed measure rather than by a row count."
+    },
+    {
+      "id": "most-popular-bike-type",
+      "question": "Which type of bike is hired most often?",
+      "expect": "ranking",
+      "truth_sql": "SELECT \"Bike Type\" FROM {table} GROUP BY 1 ORDER BY count(*) DESC LIMIT 1",
+      "why": "A second category column, to check the first one was not a fluke."
+    },
+    {
+      "id": "total-fees",
+      "question": "What is the total of all fees charged?",
+      "expect": "scalar",
+      "truth_sql": "SELECT sum(\"Fee Charged\") FROM {table}",
+      "why": "Sum one measure across the whole file."
+    },
+    {
+      "id": "fees-in-a-month",
+      "question": "How much was charged in fees in March 2024?",
+      "expect": "scalar",
+      "truth_sql": "SELECT sum(\"Fee Charged\") FROM {table} WHERE \"Hired On\" >= DATE '2024-03-01' AND \"Hired On\" < DATE '2024-04-01'",
+      "why": "Brief question 3. There is no column named after a month, so the model has to derive the period from the date column."
+    },
+    {
+      "id": "station-growth-between-quarters",
+      "question": "Which station grew the most in fees between the first and second quarter of 2024?",
+      "expect": "ranking",
+      "truth_sql": "WITH by_station AS (SELECT \"Station\" AS name, sum(CASE WHEN quarter(\"Hired On\") = 1 THEN \"Fee Charged\" ELSE 0 END) AS earlier, sum(CASE WHEN quarter(\"Hired On\") = 2 THEN \"Fee Charged\" ELSE 0 END) AS later FROM {table} WHERE year(\"Hired On\") = 2024 GROUP BY 1) SELECT name FROM by_station ORDER BY (later - earlier) DESC LIMIT 1",
+      "why": "Brief question 2, and the hardest shape here. It needs two filtered aggregates over one column and a comparison between them. Growth is the absolute change in fees, not the percentage, because a percentage rewards whichever station started nearest zero."
+    },
+    {
+      "id": "late-returns",
+      "question": "How many hires were returned late?",
+      "expect": "scalar",
+      "truth_sql": "SELECT count(*) FROM {table} WHERE \"Was Late\" = 1",
+      "why": "A flag column holds only 0 and 1. It must be counted or filtered, never summed as though it were a quantity."
+    },
+    {
+      "id": "average-minutes",
+      "question": "What is the average hire length in minutes?",
+      "expect": "scalar",
+      "truth_sql": "SELECT avg(\"Minutes Used\") FROM {table}",
+      "why": "An average rather than a sum."
+    },
+    {
+      "id": "unanswerable-rider-age",
+      "question": "What is the average age of the riders?",
+      "expect": "refusal",
+      "why": "There is no rider column at all, let alone an age. Answering this would mean inventing people."
+    },
+    {
+      "id": "unanswerable-maintenance-cost",
+      "question": "What did we spend on maintaining each bike type?",
+      "expect": "refusal",
+      "why": "There is a money column and a bike type column, so the question looks answerable. The money is what riders paid, not what maintenance cost."
+    },
+    {
+      "id": "unanswerable-weather",
+      "question": "Were there more hires on rainy days than on dry days?",
+      "expect": "refusal",
+      "why": "There is a date, so the question feels close. Nothing in the file records the weather."
+    },
+    {
+      "id": "unanswerable-repeat-riders",
+      "question": "How many riders hired a bike more than once?",
+      "expect": "refusal",
+      "why": "The hire reference identifies a hire, not a rider. Counting distinct hire references would look like an answer and would be meaningless, which makes this the most dangerous case in the suite."
+    }
+  ]
+}
