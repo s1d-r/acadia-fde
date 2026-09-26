@@ -1,0 +1,6 @@
+Booking Ref,Picked Up,"Vehicle, Class",Days Hired,Daily Rate,Member ID,Branch,Notes
+BK-0001,2023-04-01,"Hatchback, Small",3,28.50,M100,Leeds,
+BK-0002,2023-04-02,"Saloon, Large",1,54.00,M101,York,upgraded
+BK-0003,2023-04-02,"Hatchback, Small",7,28.50,M100,Leeds,
+BK-0004,2023-05-11,"Van, Luton",2,96.75,,Leeds,
+BK-0005,2023-05-12,"Saloon, Large",4,54.00,M102,York,
