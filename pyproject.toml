@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "insights"
+version = "0.1.0"
+description = "Natural language insights engine over an arbitrary transactional CSV"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb==1.5.5",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.53.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "python-multipart==0.0.32",
+    "httpx==0.28.1",
+    "sqlglot==30.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+]
+
+[project.scripts]
+insights = "insights.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/insights"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Integration tests need a running Ollama server, so they are excluded by
+# default and in CI. Run them with: pytest -m integration
+addopts = "-q -m 'not integration'"
+markers = [
+    "integration: requires a running Ollama server with the configured model",
+]

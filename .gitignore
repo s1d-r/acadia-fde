@@ -1,0 +1,21 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# The warehouse and anything uploaded into it. Both are generated.
+/data/
+
+# Local configuration and secrets
+.env
+
+# Data files are not committed, with two exceptions: the small fixtures the
+# tests need, and the evaluation dataset. The development CSV is 78 MB and is
+# downloaded separately, see the README.
+*.csv
+!tests/fixtures/*.csv
+!eval/data/*.csv
