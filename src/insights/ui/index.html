@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insights</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5f6570; --line: #e2e5ea;
+    --panel: #f7f8fa; --accent: #2b5cd9; --bad: #a8321f; --code: #f3f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171c; --fg: #e8eaed; --muted: #9aa1ad; --line: #2c303a;
+      --panel: #1c1f26; --accent: #7aa2f7; --bad: #f08a78; --code: #12141a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  section { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; background: var(--panel); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+  input[type=text], select, input[type=file] {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font: inherit;
+  }
+  .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .row > * { flex: 1 1 220px; }
+  button {
+    padding: 9px 16px; border: 0; border-radius: 6px; background: var(--accent);
+    color: #fff; font: inherit; font-weight: 600; cursor: pointer; flex: 0 0 auto;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .status { font-size: 13px; color: var(--muted); margin-top: 9px; min-height: 19px; }
+  .status.bad { color: var(--bad); }
+  pre {
+    background: var(--code); border: 1px solid var(--line); border-radius: 6px;
+    padding: 11px 13px; overflow-x: auto; font-size: 12.5px; margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .answer-reason { font-size: 15px; margin: 0 0 12px; }
+  .refusal { border-left: 3px solid var(--bad); padding-left: 12px; }
+  .refusal .tag { color: var(--bad); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .hint code { background: var(--code); padding: 1px 5px; border-radius: 4px; cursor: pointer; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Natural Language Insights Engine</h1>
+  <div class="sub">Upload a transactional CSV. Ask a question in plain English. See the answer and the SQL that produced it.</div>
+
+  <section>
+    <h2>1. Load a CSV</h2>
+    <div class="row">
+      <div><label for="file">Any transactional CSV</label><input type="file" id="file" accept=".csv,.tsv,.txt"></div>
+      <button id="upload">Upload</button>
+    </div>
+    <div class="status" id="upload-status"></div>
+  </section>
+
+  <section>
+    <h2>2. Choose a dataset</h2>
+    <div class="row">
+      <div><label for="dataset">Ingested datasets</label><select id="dataset"></select></div>
+      <button id="refresh">Refresh</button>
+    </div>
+    <details id="schema-box" class="hidden">
+      <summary>Show the schema the model is given</summary>
+      <pre id="schema"></pre>
+    </details>
+  </section>
+
+  <section>
+    <h2>3. Ask a question</h2>
+    <div class="row">
+      <div><label for="question">Question</label><input type="text" id="question" placeholder="What are the top 10 products by revenue?"></div>
+      <button id="ask">Ask</button>
+    </div>
+    <div class="status" id="ask-status"></div>
+    <div class="hint" id="hints"></div>
+  </section>
+
+  <section id="answer" class="hidden">
+    <h2>Answer</h2>
+    <div id="answer-body"></div>
+  </section>
+</div>
+
+<script>
+// A single page, no framework and no build step. The API is async, so every
+// action here is: POST, get a job id, poll until the job finishes.
+const $ = (id) => document.getElementById(id);
+const POLL_MS = 600;
+
+const EXAMPLES = [
+  "What are the top 10 products by revenue?",
+  "Which countries grew the most between the first and second half of the year?",
+  "How many customers bought only once, and what share of revenue do they represent?",
+  "Which products are most often bought together?",
+  "Which supplier delivered the most late shipments?"
+];
+
+function setStatus(el, text, bad) {
+  el.textContent = text;
+  el.classList.toggle("bad", Boolean(bad));
+}
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = body.error || {};
+    throw new Error(error.message || ("Request failed with " + response.status));
+  }
+  return body;
+}
+
+// Poll one job until it is no longer queued or running.
+async function waitForJob(jobId, onTick) {
+  for (;;) {
+    const job = await api("/api/jobs/" + jobId);
+    if (job.status === "succeeded") return job;
+    if (job.status === "failed") {
+      const error = job.error || {};
+      throw new Error(error.message || "The job failed");
+    }
+    if (onTick) onTick(job.status);
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+}
+
+async function loadDatasets(selectId) {
+  const { datasets } = await api("/api/datasets");
+  const select = $("dataset");
+  select.innerHTML = "";
+  for (const dataset of datasets) {
+    const option = document.createElement("option");
+    option.value = dataset.dataset_id;
+    option.textContent =
+      dataset.source_filename + "  (" + dataset.row_count.toLocaleString() +
+      " rows, " + dataset.column_count + " columns)";
+    select.appendChild(option);
+  }
+  if (selectId) select.value = selectId;
+  await loadSchema();
+  return datasets;
+}
+
+async function loadSchema() {
+  const id = $("dataset").value;
+  const box = $("schema-box");
+  if (!id) { box.classList.add("hidden"); return; }
+  try {
+    const { prompt_text } = await api("/api/datasets/" + id + "/context");
+    $("schema").textContent = prompt_text;
+    box.classList.remove("hidden");
+  } catch {
+    box.classList.add("hidden");
+  }
+}
+
+$("upload").onclick = async () => {
+  const input = $("file");
+  if (!input.files.length) { setStatus($("upload-status"), "Choose a file first.", true); return; }
+  const form = new FormData();
+  form.append("file", input.files[0]);
+
+  $("upload").disabled = true;
+  setStatus($("upload-status"), "Uploading...");
+  try {
+    const { job_id } = await api("/api/datasets", { method: "POST", body: form });
+    setStatus($("upload-status"), "Profiling the file...");
+    const job = await waitForJob(job_id);
+    const profile = job.result;
+    setStatus($("upload-status"),
+      "Loaded " + profile.source_filename + ": " +
+      profile.row_count.toLocaleString() + " rows, " + profile.column_count + " columns.");
+    await loadDatasets(profile.dataset_id);
+  } catch (error) {
+    setStatus($("upload-status"), error.message, true);
+  } finally {
+    $("upload").disabled = false;
+  }
+};
+
+$("refresh").onclick = () => loadDatasets();
+$("dataset").onchange = () => loadSchema();
+
+$("ask").onclick = async () => {
+  const datasetId = $("dataset").value;
+  const question = $("question").value.trim();
+  if (!datasetId) { setStatus($("ask-status"), "Load a CSV first.", true); return; }
+  if (!question) { setStatus($("ask-status"), "Type a question first.", true); return; }
+
+  $("ask").disabled = true;
+  $("answer").classList.add("hidden");
+  setStatus($("ask-status"), "Planning the query...");
+  const startedAt = Date.now();
+  try {
+    const { job_id } = await api(
+      "/api/datasets/" + datasetId + "/questions",
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }) }
+    );
+    const job = await waitForJob(job_id, () => {
+      const seconds = ((Date.now() - startedAt) / 1000).toFixed(0);
+      setStatus($("ask-status"), "Planning the query... " + seconds + "s");
+    });
+    setStatus($("ask-status"), "");
+    render(job.result);
+  } catch (error) {
+    setStatus($("ask-status"), error.message, true);
+  } finally {
+    $("ask").disabled = false;
+  }
+};
+
+function render(answer) {
+  const box = $("answer-body");
+  box.innerHTML = "";
+
+  // A refusal is an answer, not an error. It gets the same panel, with the
+  // reason the data cannot support the question.
+  if (answer.outcome === "refusal") {
+    const block = document.createElement("div");
+    block.className = "refusal";
+    block.innerHTML =
+      '<div class="tag">Cannot answer</div><p class="answer-reason"></p>';
+    block.querySelector("p").textContent = answer.reason;
+    box.appendChild(block);
+    addMeta(box, answer, null);
+    $("answer").classList.remove("hidden");
+    return;
+  }
+
+  const reason = document.createElement("p");
+  reason.className = "answer-reason";
+  reason.textContent = answer.reason;
+  box.appendChild(reason);
+
+  const result = answer.result;
+  const scroll = document.createElement("div");
+  scroll.className = "scroll";
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const column of result.columns) {
+    const th = document.createElement("th");
+    th.textContent = column;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+  for (const row of result.rows) {
+    const tr = document.createElement("tr");
+    for (const value of row) {
+      const td = document.createElement("td");
+      td.textContent = value === null ? "" : String(value);
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  scroll.appendChild(table);
+  box.appendChild(scroll);
+
+  const details = document.createElement("details");
+  details.open = true;
+  details.innerHTML = "<summary>SQL that produced this</summary>";
+  const pre = document.createElement("pre");
+  pre.textContent = answer.sql;
+  details.appendChild(pre);
+  box.appendChild(details);
+
+  addMeta(box, answer, result);
+  $("answer").classList.remove("hidden");
+}
+
+function addMeta(box, answer, result) {
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const parts = [];
+  if (result) {
+    parts.push(result.row_count + (result.truncated ? " rows (truncated)" : " rows"));
+    parts.push("query " + result.duration_ms + " ms");
+  }
+  parts.push("planned by " + answer.model + " in " + answer.planning_ms + " ms");
+  meta.textContent = parts.join(" · ");
+  box.appendChild(meta);
+}
+
+const hints = $("hints");
+hints.append("Try: ");
+EXAMPLES.forEach((example, index) => {
+  const code = document.createElement("code");
+  code.textContent = example;
+  code.onclick = () => { $("question").value = example; };
+  hints.appendChild(code);
+  if (index < EXAMPLES.length - 1) hints.append(" ");
+});
+
+loadDatasets().catch(() => {});
+</script>
+</body>
+</html>
