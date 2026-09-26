@@ -49,14 +49,14 @@ git commit at all.
 | GIFs | Done. Three, including a second CSV uploaded and queried |
 | Cut list | Done, in the system design document |
 | Tests and CI | 204 tests passing. CI runs tests and validates the evaluation suites |
-| Git history | 12 commits on `main`, in logical steps |
+| Git history | 13 commits on `main`, in logical steps, pushed to GitHub |
 
 ### Test and evaluation results
 
 204 tests pass, and 3 integration tests pass separately against a live model.
-Both CI commands were run in a fresh clone with the large development CSV
-absent, which is what GitHub will see. Everything passes and the retail
-evaluation suite skips cleanly.
+Both CI commands were also run in a fresh clone with the large development CSV
+absent, which is what GitHub sees. The retail evaluation suite skips cleanly
+there. CI on GitHub Actions passed on the first push.
 
 Evaluation against `qwen2.5-coder:7b`:
 
@@ -72,23 +72,15 @@ an answer across three different files.
 
 ### What is still missing, or was not verified
 
-**The repository has not been pushed.** This is the one item on the list that
-could not be completed. The GitHub CLI is installed on this machine but not
-logged in, no token is present in the environment, and the session was non
-interactive, so the browser based login could not be run. All work is committed
-on `main` locally. See the handoff below.
+**The Docker path has never been run.** This is the one deliverable that was
+written without being executed. See below.
 
-**The repository is therefore not public yet, and the README rendering on
-GitHub has not been checked.** Every relative link and image path in every
-markdown file was verified to resolve against a fresh clone, so the links will
-work. How GitHub renders the page has not been seen.
-
-**The Docker path has never been run.** This machine has no Docker installed.
-The `Dockerfile` and `docker-compose.yml` are complete and reviewed, and compose
-starts the model server, pulls the model, and waits for the pull before starting
-the API. None of it has been executed. The Python path in `scripts/run.ps1` was
-verified from a clean clone, including uploading a CSV and asking a question
-over HTTP, and that is the path the README recommends first.
+This machine has no Docker installed. The `Dockerfile` and `docker-compose.yml`
+are complete and reviewed, and compose starts the model server, pulls the model,
+and waits for the pull before starting the API. None of it has been executed.
+The Python path in `scripts/run.ps1` was verified from a clean clone, including
+uploading a CSV and asking a question over HTTP, and that is the path the README
+recommends first.
 
 **Four evaluation cases fail on the retail dataset.** All four are questions
 whose answer has to be derived rather than looked up: growth between two
@@ -103,36 +95,22 @@ one source of variation and batching inside the inference server is another.
 
 **No tracing.** Diagnosing a wrong answer means re-running it by hand.
 
-### Handoff: how to finish the push
+### Git identity
 
-The commits are ready. From the repository root:
-
-```bash
-gh auth login                       # one interactive login
-gh repo create <name> --public --source=. --remote=origin --push
-```
-
-Or, without the GitHub CLI, create an empty public repository on github.com and
-then:
-
-```bash
-git remote add origin https://github.com/<user>/<name>.git
-git push -u origin main
-```
-
-Then confirm three things: the repository is public, the README renders with the
-three GIFs visible, and the CI badge or the Actions tab shows a green run.
-
-One more thing worth changing first. Git identity in this repository was set to
-the name `rsidd` with the email on this machine, because no full name was
-available. To change it before pushing:
+Git identity in this repository is the name `rsidd` with the email on this
+machine, because no full name was available when the commits were made. To
+change it and rewrite the existing commits:
 
 ```bash
 git config user.name "Your Name"
 git -c rebase.instructionFormat='%s' rebase --root --exec 'git commit --amend --no-edit --reset-author'
+git push --force-with-lease
 ```
 
-### Repository URL
+### Repository
 
-Not yet available. The repository exists only locally, at `D:\acadia_fde`, on
-branch `main` with 12 commits. This section should be filled in after the push.
+https://github.com/s1d-r/acadia-fde
+
+Public, on branch `main`, 13 commits. Checked anonymously after the push: the
+repository is visible without signing in, the README renders with all three
+GIFs, and every relative link resolves.
