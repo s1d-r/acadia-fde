@@ -1,0 +1,63 @@
+# One command from a clean machine:
+#
+#     docker compose up
+#
+# This brings up three things. The model server, a one shot container that
+# pulls the model into it, and the API. The API waits for the pull to finish,
+# so the first question after startup does not fail because the model is not
+# there yet.
+#
+# The first run downloads about 4.7 GB of model weights. Later runs reuse the
+# named volume and start in seconds.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    # Not published by default. Nothing outside the compose network needs it,
+    # and the API reaches it by service name.
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # A one shot container whose only job is to make sure the model is present.
+  # Separated from the API so that the API image does not need the Ollama
+  # client, and so a slow first download is visible as its own step.
+  model-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      'ollama pull "${INSIGHTS_OLLAMA_MODEL:-qwen2.5-coder:7b}"'
+    restart: "no"
+
+  api:
+    build: .
+    depends_on:
+      model-pull:
+        condition: service_completed_successfully
+    ports:
+      - "${INSIGHTS_PORT:-8000}:8000"
+    environment:
+      # Inside the compose network the model server is a hostname, not
+      # localhost. This is the one setting that has to change between running
+      # in Docker and running on a laptop.
+      INSIGHTS_OLLAMA_HOST: http://ollama:11434
+      INSIGHTS_OLLAMA_MODEL: "${INSIGHTS_OLLAMA_MODEL:-qwen2.5-coder:7b}"
+      INSIGHTS_DATA_DIR: /app/data
+    volumes:
+      - warehouse:/app/data
+
+volumes:
+  ollama-models:
+  warehouse:
