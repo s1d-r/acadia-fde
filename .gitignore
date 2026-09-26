@@ -19,3 +19,6 @@ __pycache__/
 *.csv
 !tests/fixtures/*.csv
 !eval/data/*.csv
+
+# Local demo warehouse used when recording the GIFs.
+/data_demo/
