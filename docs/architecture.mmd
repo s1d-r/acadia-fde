@@ -1,0 +1,50 @@
+%% Source for docs/architecture.png.
+%% GitHub renders this block inline wherever it appears in a markdown file.
+flowchart TB
+    subgraph callers["Callers"]
+        UI["Browser UI<br/><i>one static page, no build step</i>"]
+        CURL["HTTP client<br/><i>curl, or anything else</i>"]
+        CLI["Command line<br/><i>insights ingest / ask</i>"]
+    end
+
+    API["<b>HTTP API (FastAPI)</b><br/>input validation, status codes,<br/>one error shape, no stack traces"]
+
+    subgraph jobs["Job layer"]
+        RUNNER["Job runner<br/><i>bounded pool of worker threads</i>"]
+        JOBSTORE["Job store (meta.jobs)<br/><i>interrupted jobs closed out at startup</i>"]
+    end
+
+    subgraph engine["Engine"]
+        INGEST["1. Ingestion<br/><i>loader knows no meaning,<br/>profiler draws no conclusions</i>"]
+        CONTEXT["2. Schema context builder<br/><i>roles from statistics, never from names</i>"]
+        PLANNER["3. Planner<br/><i>SQL out, or a refusal with a reason</i>"]
+        VALIDATOR["4. Validator<br/><i>one SELECT, our table only,<br/>columns must exist</i>"]
+        EXECUTOR["5. Executor<br/><i>row limit and timeout</i>"]
+        REGISTRY["Registry (meta.datasets)<br/><i>the measured profile of each dataset</i>"]
+        LLM["LLM client (protocol)<br/><i>one method, nothing above it<br/>has heard of Ollama</i>"]
+    end
+
+    OLLAMA["Ollama<br/>qwen2.5-coder:7b"]
+    DUCKDB[("DuckDB, one file<br/>ds_id tables, meta.datasets, meta.jobs")]
+    ANSWER["Answer<br/><i>rows, the SQL that produced them,<br/>the model, and the timings.<br/>Or a refusal naming what is missing.</i>"]
+
+    UI --> API
+    CURL --> API
+    CLI -.-> INGEST
+    API -->|"submit, get an id"| RUNNER
+    RUNNER <--> JOBSTORE
+    RUNNER --> INGEST
+    RUNNER --> CONTEXT
+    INGEST --> REGISTRY
+    REGISTRY --> CONTEXT
+    CONTEXT --> PLANNER
+    PLANNER <--> LLM
+    LLM <-.-> OLLAMA
+    PLANNER -->|"SQL"| VALIDATOR
+    PLANNER -->|"refusal"| ANSWER
+    VALIDATOR -->|"ValidatedQuery"| EXECUTOR
+    EXECUTOR --> ANSWER
+    INGEST --> DUCKDB
+    EXECUTOR --> DUCKDB
+    JOBSTORE --> DUCKDB
+    REGISTRY --> DUCKDB

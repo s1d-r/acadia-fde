@@ -19,4 +19,12 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Tests
+        # Integration tests need a model server, so they are excluded by the
+        # default marker expression in pyproject.toml. CI stays hermetic.
         run: pytest
+
+      - name: Validate the evaluation suites
+        # Checks that every suite parses and that every truth query still runs
+        # against its data file. This needs no model, so it belongs in CI even
+        # though the full evaluation run does not.
+        run: python -m insights.evaluation --check
