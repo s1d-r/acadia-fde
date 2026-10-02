@@ -299,6 +299,7 @@ transactional CSV works; nothing in the code depends on that one.
 
 | Document | What is in it |
 | --- | --- |
+| [docs/learn-this-project.md](docs/learn-this-project.md) | A guide from first principles, for someone new to SQL, APIs and databases. Start here. |
 | [docs/system-design.md](docs/system-design.md) | The components, the path a question takes, the big decisions, and what I cut. |
 | [docs/walkthrough-notes.md](docs/walkthrough-notes.md) | Every component in plain language, and every SQL query explained clause by clause. |
 | [docs/decisions.md](docs/decisions.md) | The decision log, written as each slice landed. |
